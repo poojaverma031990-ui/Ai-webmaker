@@ -31,6 +31,81 @@ async function startServer() {
   const app = (0, import_express.default)();
   const PORT = 3e3;
   app.use(import_express.default.json());
+  app.get("/api/proxy", async (req, res) => {
+    const targetUrl = req.query.url;
+    if (!targetUrl || typeof targetUrl !== "string") return res.status(400).send("URL required");
+    try {
+      const response = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"
+        },
+        redirect: "follow"
+      });
+      const headers = new Headers(response.headers);
+      headers.delete("x-frame-options");
+      headers.delete("content-security-policy");
+      headers.delete("content-security-policy-report-only");
+      headers.delete("x-xss-protection");
+      const resHeaders = {};
+      headers.forEach((value, key) => {
+        if (key !== "content-encoding" && key !== "content-length" && key !== "transfer-encoding") {
+          resHeaders[key] = value;
+        }
+      });
+      const contentType = headers.get("content-type") || "";
+      if (contentType.includes("text/html")) {
+        let html = await response.text();
+        const basePath = new URL(response.url).href;
+        const interceptScript = `<script>
+    window.open = function(url) {
+      if (url) {
+        const fullUrl = new URL(url, window.location.href).href;
+        window.parent.postMessage({ type: "EXTERNAL_LINK", url: fullUrl }, "*");
+      }
+      return null;
+    };
+    document.addEventListener("click", function(e) {
+      const a = e.target.closest("a");
+      if (a && a.href) {
+        e.preventDefault();
+        e.stopPropagation();
+        const fullUrl = new URL(a.href, window.location.href).href;
+        window.parent.postMessage({ type: "EXTERNAL_LINK", url: fullUrl }, "*");
+      }
+    }, true);
+    document.addEventListener("submit", function(e) {
+      if (e.target && e.target.action) {
+        e.preventDefault();
+        e.stopPropagation();
+        let url = new URL(e.target.action);
+        const formData = new FormData(e.target);
+        if (e.target.method.toLowerCase() === 'get') {
+          const params = new URLSearchParams(formData);
+          url.search = params.toString();
+        }
+        window.parent.postMessage({ type: "EXTERNAL_LINK", url: url.href }, "*");
+      }
+    }, true);
+  </script>`;
+        const baseTag = `<base href="${basePath}">${interceptScript}`;
+        if (html.match(/<head[^>]*>/i)) {
+          html = html.replace(/(<head[^>]*>)/i, `$1${baseTag}`);
+        } else {
+          html = `<head>${baseTag}</head>` + html;
+        }
+        res.set(resHeaders);
+        res.send(html);
+      } else {
+        res.set(resHeaders);
+        const arrayBuffer = await response.arrayBuffer();
+        res.send(Buffer.from(arrayBuffer));
+      }
+    } catch (e) {
+      console.error("Proxy Error:", e);
+      res.status(500).send("Proxy Error");
+    }
+  });
   app.post("/api/generate", async (req, res) => {
     try {
       const { prompt, history = [] } = req.body;

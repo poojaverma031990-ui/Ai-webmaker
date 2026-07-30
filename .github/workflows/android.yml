@@ -27,8 +27,14 @@ jobs:
       - name: Build Web App
         run: npm run build
 
+      - name: Ensure Android platform exists
+        run: |
+          if [ ! -d "android" ]; then
+            npx @capacitor/cli add android
+          fi
+
       - name: Sync Capacitor
-        run: npx cap sync android
+        run: npx @capacitor/cli sync android
 
       - name: Setup Java
         uses: actions/setup-java@v4

@@ -41,16 +41,29 @@ export default function WebsiteRenderer({ files }: { files: GeneratedFile[] }) {
     const injectedHtml = htmlContent
       .replace(/<\/head>/i, `<style>${cssContent}</style></head>`)
       .replace(/<\/body>/i, `<script>${jsContent}</script><script>
-        document.addEventListener("click", function(e) { 
-          const a = e.target.closest("a"); 
-          if (a) {
-            const href = a.getAttribute("href");
-            if (href && (href.startsWith("http://") || href.startsWith("https://"))) { 
-              e.preventDefault(); 
-              window.parent.postMessage({ type: "EXTERNAL_LINK", url: a.href }, "*");
-            } 
+        window.open = function(url) {
+          if (url) {
+            window.parent.postMessage({ type: "EXTERNAL_LINK", url: url }, "*");
           }
-        });
+          return null;
+        };
+        document.addEventListener("click", function(e) {
+           const a = e.target.closest("a");
+           if (a) {
+            const href = a.getAttribute("href");
+            if (href && (href.startsWith("http://") || href.startsWith("https://"))) {
+               e.preventDefault();
+               window.parent.postMessage({ type: "EXTERNAL_LINK", url: a.href }, "*");
+            } else if (a.target === "_blank") {
+               a.target = "_self";
+            }
+           }
+        }, true);
+        document.addEventListener("submit", function(e) {
+           if (e.target && e.target.target === "_blank") {
+               e.target.target = "_self";
+           }
+        }, true);
       </script></body>`);
 
     setSrcDoc(injectedHtml);
