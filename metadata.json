@@ -1,0 +1,6 @@
+{
+  "name": "Harsh Website Builder",
+  "description": "An AI-powered application that generates structured website layouts and React code based on user text descriptions, featuring a dark theme and project export/import capabilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
